@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
 
 namespace Serial_Temperature
 {
@@ -73,7 +74,7 @@ namespace Serial_Temperature
     private void DeleteOldLogEntries()
     {
       var lines = logTextBox.Lines;
-      int numOfLines = Math.Max(lines.Count() - 200, 0);
+      int numOfLines = Math.Max(lines.Count() - 2000, 0);
       var newLines = lines.Skip(numOfLines);
 
       logTextBox.Lines = newLines.ToArray();
@@ -84,13 +85,51 @@ namespace Serial_Temperature
       _reader.Dispose();
     }
 
-    private void checkBox1_CheckedChanged(object sender, EventArgs e)
+    private void ZeroCheckBoxChanged(object sender, EventArgs e)
     {
-     if (checkBox1.Checked) chart1.ChartAreas[0].AxisY.Minimum = 0;
+     if (zeroCheckBox.Checked) chart1.ChartAreas[0].AxisY.Minimum = 0;
      else
      {
        chart1.ChartAreas[0].AxisY.Minimum = Math.Floor(chart1.Series[0].Points.Min(x => x.YValues[0])/10)*10;
      }
+    }
+
+    private void splineCheckBox_CheckedChanged(object sender, EventArgs e)
+    {
+      chart1.Series[0].ChartType = splineCheckBox.Checked ? SeriesChartType.Spline : SeriesChartType.Line;
+    }
+
+    private void button1_Click(object sender, EventArgs e)
+    {
+      var points = chart1.Series[0].Points.ToList();
+      var lines = File.ReadAllLines("test.csv");
+      foreach (var line in lines)
+      {
+        if (line.Count(x => x == ',') != 1) continue;
+        var parts = line.Split(',');
+        DateTime date;
+        float t;
+        if (!DateTime.TryParse(parts[0], out date)) continue;
+        if (!float.TryParse(parts[1], out t)) continue;
+
+        chart1.Series[0].Points.AddXY(date, t);
+      }
+
+      chart1.DataManipulator.Sort(PointSortOrder.Ascending, "X", "Temperature");
+
+      logTextBox.Clear();
+      foreach (var point in chart1.Series[0].Points)
+      {
+        DateTime date;
+        float t;
+        if (!DateTime.TryParse(point[0], out date)) continue;
+        if (!float.TryParse(point[1], out t)) continue;
+
+        var entry = new Entry(date, t);
+        Log(entry.TimeEntry);
+      }
+
+      Log("Loaded from file");
     }
   }
 }
